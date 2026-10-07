@@ -5,6 +5,10 @@
   let duration = 600000, remaining = duration, deadline = 0, state = 'ready';
   let sound = false, context, audioEpoch = 0, wakeLock = null, lastSecond = -1;
   const voices = new Set();
+  const water = $('water');
+  const waterContext = water.getContext?.('2d', { alpha: true });
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let waterFraction = 1, waterFrame = 0, lastWaterFrame = 0;
   const announce = message => { $('announcement').textContent = message; };
   const readRemaining = () => state === 'running' ? Math.max(0, deadline - Date.now()) : remaining;
   const snapshot = () => ({ state, durationSeconds: duration / 1000, remainingSeconds: Math.ceil(readRemaining() / 1000), sound: sound ? 'soft tone' : 'silent' });
@@ -17,11 +21,113 @@
     $('ticks').append(line);
   }
 
+  function drawWater(now = 0) {
+    if (!waterContext) return;
+    const size = Math.max(1, water.clientWidth);
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixels = Math.round(size * pixelRatio);
+    if (water.width !== pixels || water.height !== pixels) {
+      water.width = pixels;
+      water.height = pixels;
+    }
+    const ctx = waterContext;
+    ctx.setTransform(pixels / 400, 0, 0, pixels / 400, 0, 0);
+    ctx.clearRect(0, 0, 400, 400);
+    if (waterFraction <= 0) return;
+
+    const time = reducedMotion.matches ? 0 : now / 1000;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(200, 200);
+    ctx.arc(200, 200, 167, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * waterFraction);
+    ctx.closePath();
+    ctx.clip();
+
+    // Deep, softly lit water. All highlights stay inside the remaining wedge.
+    const depth = ctx.createLinearGradient(75, 35, 315, 370);
+    depth.addColorStop(0, '#8dbbc8');
+    depth.addColorStop(.38, '#6399ad');
+    depth.addColorStop(1, '#346d88');
+    ctx.fillStyle = depth;
+    ctx.fillRect(33, 33, 334, 334);
+    const light = ctx.createRadialGradient(122, 103, 12, 180, 170, 265);
+    light.addColorStop(0, 'rgba(236,251,248,.33)');
+    light.addColorStop(.6, 'rgba(212,239,238,.06)');
+    light.addColorStop(1, 'rgba(12,59,80,.13)');
+    ctx.fillStyle = light;
+    ctx.fillRect(33, 33, 334, 334);
+
+    // Wide rings move outward slowly, with tiny irregularities like pond ripples.
+    const phase = (time * 4) % 31;
+    for (let ring = 0; ring < 7; ring++) {
+      const radius = 34 + ring * 31 + phase;
+      if (radius > 188) continue;
+      const strength = Math.max(0, 1 - radius / 205);
+      const path = new Path2D();
+      for (let point = 0; point <= 96; point++) {
+        const angle = point / 96 * Math.PI * 2;
+        const drift = Math.sin(angle * 3 + time * .28 + ring) * 2.6 + Math.sin(angle * 6 - time * .2) * 1.1;
+        const r = radius + drift;
+        const x = 198 + Math.cos(angle) * r;
+        const y = 186 + Math.sin(angle) * r * .77;
+        if (point === 0) path.moveTo(x, y); else path.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(17,70,91,${.1 * strength})`;
+      ctx.lineWidth = 4.5;
+      ctx.stroke(path);
+      ctx.strokeStyle = `rgba(233,251,248,${.27 * strength})`;
+      ctx.lineWidth = 1.6;
+      ctx.stroke(path);
+    }
+
+    // Long, barely moving reflections make the surface feel open and quiet.
+    for (let row = 0; row < 6; row++) {
+      const y = 94 + row * 42;
+      const start = 67 + (row % 3) * 15;
+      const end = 328 - (row % 2) * 23;
+      ctx.beginPath();
+      for (let x = start; x <= end; x += 5) {
+        const wave = Math.sin(x / 27 + time * .22 + row * .9) * 2.3 + Math.sin(x / 61 - time * .16) * 1.5;
+        if (x === start) ctx.moveTo(x, y + wave); else ctx.lineTo(x, y + wave);
+      }
+      ctx.strokeStyle = `rgba(231,250,247,${row % 2 === 0 ? .095 : .055})`;
+      ctx.lineWidth = row % 2 === 0 ? 1.8 : 1;
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(200, 200, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(24,67,83,.52)';
+    ctx.fill();
+    water.classList.add('is-ready');
+  }
+
+  function animateWater(now) {
+    waterFrame = 0;
+    if (document.visibilityState !== 'visible' || reducedMotion.matches) return;
+    if (now - lastWaterFrame >= 40) {
+      drawWater(now);
+      lastWaterFrame = now;
+    }
+    waterFrame = requestAnimationFrame(animateWater);
+  }
+  function updateWaterMotion() {
+    if (waterFrame) cancelAnimationFrame(waterFrame);
+    waterFrame = 0;
+    drawWater(performance.now());
+    if (document.visibilityState === 'visible' && !reducedMotion.matches && waterContext) waterFrame = requestAnimationFrame(animateWater);
+  }
+  reducedMotion.addEventListener?.('change', updateWaterMotion);
+  if (window.ResizeObserver) new ResizeObserver(() => drawWater(performance.now())).observe(water);
+  else window.addEventListener('resize', () => drawWater(performance.now()));
+
   function render() {
     const left = readRemaining(), fraction = Math.max(0, Math.min(1, left / duration));
+    waterFraction = fraction;
     const elapsedAngle = (1 - fraction) * Math.PI * 2;
     const x = 200 + 167 * Math.sin(elapsedAngle), y = 200 - 167 * Math.cos(elapsedAngle);
     $('sector').setAttribute('d', fraction >= .999999 ? 'M200 33 A167 167 0 1 1 199.999 33 Z' : fraction <= 0 ? '' : `M200 200 L${x} ${y} A167 167 0 ${fraction > .5 ? 1 : 0} 1 200 33 Z`);
+    drawWater(performance.now());
     const seconds = Math.ceil(left / 1000);
     if (seconds !== lastSecond) {
       const text = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -158,8 +264,9 @@
   });
   const tick = () => { if (state === 'running') { if (readRemaining() <= 0) finish(); else render(); } };
   setInterval(tick, 100);
-  document.addEventListener('visibilitychange', () => { tick(); if (document.visibilityState === 'visible') void keepAwake(); });
+  document.addEventListener('visibilitychange', () => { tick(); updateWaterMotion(); if (document.visibilityState === 'visible') void keepAwake(); });
   updateControls();
+  updateWaterMotion();
 
   // Progressive enhancement for browsers with WebMCP; no dependency or network access.
   if (document.modelContext?.registerTool) {
