@@ -4,6 +4,7 @@
   const presets = [...document.querySelectorAll('[data-minutes]')];
   let duration = 600000, remaining = duration, deadline = 0, state = 'ready';
   let sound = false, context, audioEpoch = 0, wakeLock = null, lastSecond = -1;
+  let nightMode = document.documentElement.dataset.theme === 'dark';
   const voices = new Set();
   const water = $('water');
   const waterContext = water.getContext?.('2d', { alpha: true });
@@ -45,9 +46,9 @@
 
     // Deep, softly lit water. All highlights stay inside the remaining wedge.
     const depth = ctx.createLinearGradient(75, 35, 315, 370);
-    depth.addColorStop(0, '#8dbbc8');
-    depth.addColorStop(.38, '#6399ad');
-    depth.addColorStop(1, '#346d88');
+    depth.addColorStop(0, nightMode ? '#507d91' : '#8dbbc8');
+    depth.addColorStop(.38, nightMode ? '#356278' : '#6399ad');
+    depth.addColorStop(1, nightMode ? '#21465d' : '#346d88');
     ctx.fillStyle = depth;
     ctx.fillRect(33, 33, 334, 334);
     const light = ctx.createRadialGradient(122, 103, 12, 180, 170, 265);
@@ -148,8 +149,7 @@
     $('time-caption').textContent = state === 'finished' ? 'Your time is complete.' : state === 'paused' ? 'paused · continue when you’re ready' : 'minutes remaining';
     document.body.classList.toggle('finished', state === 'finished');
     for (const button of presets) { button.disabled = running; button.setAttribute('aria-pressed', String(Number(button.dataset.minutes) * 60000 === duration)); }
-    $('minutes').disabled = running;
-    $('custom-form').querySelector('button').disabled = running;
+    for (const control of $('custom-form').querySelectorAll('input, button')) control.disabled = running;
     lastSecond = -1;
     render();
   }
@@ -223,9 +223,13 @@
   }
   function reset() { stopSound(); state = 'ready'; remaining = duration; releaseAwake(); updateControls(); announce('Timer reset.'); }
   function setDuration(minutes) {
-    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes < .1 || minutes > 180) throw new Error('Choose a duration between 0.1 and 180 minutes.');
+    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes < 1 / 60 || minutes > 180) throw new Error('Choose a duration between 1 second and 180 minutes.');
     if (state === 'running') throw new Error('Pause the timer before changing its duration.');
-    duration = Math.round(minutes * 60000); $('minutes').value = String(minutes); reset();
+    duration = Math.round(minutes * 60) * 1000;
+    writeCustomDuration(duration / 1000);
+    clearDurationError();
+    reset();
+    announce(`Timer set to ${Math.floor(duration / 60000)} minutes ${duration / 1000 % 60} seconds.`);
   }
   function setSound(enabled) {
     sound = enabled; stopSound();
@@ -237,7 +241,56 @@
   $('start').addEventListener('click', () => state === 'running' ? pause() : start());
   $('reset').addEventListener('click', reset);
   presets.forEach(button => button.addEventListener('click', () => setDuration(Number(button.dataset.minutes))));
-  $('custom-form').addEventListener('submit', event => { event.preventDefault(); if ($('minutes').checkValidity()) setDuration(Number($('minutes').value)); });
+  function writeCustomDuration(seconds) {
+    $('minutes').value = String(Math.floor(seconds / 60));
+    $('seconds').value = String(seconds % 60);
+  }
+  function clearDurationError() {
+    $('duration-error').hidden = true;
+    $('duration-error').textContent = '';
+    for (const id of ['minutes', 'seconds']) $(id).removeAttribute('aria-invalid');
+  }
+  function readCustomDuration() {
+    if (!$('custom-form').reportValidity()) return null;
+    return Number($('minutes').value) * 60 + Number($('seconds').value);
+  }
+  $('custom-form').addEventListener('input', clearDurationError);
+  $('custom-form').addEventListener('submit', event => {
+    event.preventDefault();
+    if (state === 'running') return;
+    const seconds = readCustomDuration();
+    if (seconds === null) return;
+    if (seconds < 1 || seconds > 10800) {
+      $('duration-error').textContent = 'Choose a time from 1 second to 180 minutes.';
+      $('duration-error').hidden = false;
+      for (const id of ['minutes', 'seconds']) $(id).setAttribute('aria-invalid', 'true');
+      $('minutes').focus();
+      return;
+    }
+    setDuration(seconds / 60);
+  });
+  for (const [id, adjustment] of [['less-time', -60], ['more-time', 60]]) {
+    $(id).addEventListener('click', () => {
+      if (state === 'running') return;
+      const seconds = readCustomDuration();
+      if (seconds === null) return;
+      writeCustomDuration(Math.max(1, Math.min(10800, seconds + adjustment)));
+      clearDurationError();
+    });
+  }
+  function applyTheme() {
+    document.documentElement.dataset.theme = nightMode ? 'dark' : 'light';
+    $('theme-toggle').setAttribute('aria-pressed', String(nightMode));
+    $('theme-toggle').title = nightMode ? 'Turn off night mode' : 'Turn on night mode';
+    document.querySelector('meta[name="theme-color"]').content = nightMode ? '#101b24' : '#f6f8fa';
+    drawWater(performance.now());
+  }
+  $('theme-toggle').addEventListener('click', () => {
+    nightMode = !nightMode;
+    try { localStorage.setItem('still-theme', nightMode ? 'dark' : 'light'); } catch {}
+    applyTheme();
+  });
+  applyTheme();
   $('activity').addEventListener('input', updateControls);
   $('silent').addEventListener('click', () => setSound(false));
   $('tone').addEventListener('click', () => setSound(true));
@@ -273,7 +326,7 @@
     const lifecycle = new AbortController();
     const register = tool => { try { Promise.resolve(document.modelContext.registerTool(tool, { signal: lifecycle.signal })).catch(() => {}); } catch {} };
     register({ name: 'read_timer', description: 'Read the current countdown, duration, and playback state.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true }, execute: snapshot });
-    register({ name: 'configure_timer', description: 'Set duration in minutes while stopped or paused. Resets the countdown without starting it.', inputSchema: { type: 'object', properties: { minutes: { type: 'number', minimum: .1, maximum: 180 } }, required: ['minutes'], additionalProperties: false }, annotations: { readOnlyHint: false }, execute: input => { setDuration(input?.minutes); return snapshot(); } });
+    register({ name: 'configure_timer', description: 'Set duration in minutes while stopped or paused. Resets the countdown without starting it.', inputSchema: { type: 'object', properties: { minutes: { type: 'number', minimum: 1 / 60, maximum: 180 } }, required: ['minutes'], additionalProperties: false }, annotations: { readOnlyHint: false }, execute: input => { setDuration(input?.minutes); return snapshot(); } });
     register({ name: 'control_timer', description: 'Start, pause, or reset the visible timer. Start uses the sound choice already selected by the user.', inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['start', 'pause', 'reset'] } }, required: ['action'], additionalProperties: false }, annotations: { readOnlyHint: false }, execute: input => { const actions = { start, pause, reset }; if (!input || !Object.hasOwn(actions, input.action)) throw new Error('Choose start, pause, or reset.'); actions[input.action](); return snapshot(); } });
     window.addEventListener('pagehide', event => { if (!event.persisted) lifecycle.abort(); });
   }

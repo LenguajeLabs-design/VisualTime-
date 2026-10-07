@@ -7,13 +7,23 @@
   <meta name="description" content="A calm visual timer for your desk and classroom. A shrinking disc, a clear countdown, and a quiet finish.">
   <title>Still · Calm visual timer</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23edf2f6'/%3E%3Cpath d='M16 5a11 11 0 1 0 11 11H16Z' fill='%23477599'/%3E%3C/svg%3E">
+  <script>
+    (() => {
+      let theme;
+      try { theme = localStorage.getItem('still-theme'); } catch {}
+      document.documentElement.dataset.theme = theme === 'dark' || theme === 'light' ? theme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    })();
+  </script>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="Still home"><span class="brand-icon" aria-hidden="true"></span>still<span class="brand-note">a little room to focus</span></a>
+    <div class="header-actions">
+    <button id="theme-toggle" class="quiet-button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5A9 9 0 0 1 9.5 3.5a9 9 0 1 0 11 11Z"/></svg><span>Night mode</span></button>
     <button id="fullscreen" class="quiet-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span>Full screen</span></button>
+    </div>
   </header>
   <main>
     <section class="timer-area" aria-label="Visual timer">
@@ -41,8 +51,21 @@
       <section class="setting-section">
         <h2>Set your time <span>minutes</span></h2>
         <div class="presets" aria-label="Duration presets"><button data-minutes="5" aria-pressed="false">5</button><button data-minutes="10" aria-pressed="true">10</button><button data-minutes="15" aria-pressed="false">15</button><button data-minutes="20" aria-pressed="false">20</button><button data-minutes="25" aria-pressed="false">25</button><button data-minutes="30" aria-pressed="false">30</button><button data-minutes="45" aria-pressed="false">45</button><button data-minutes="60" aria-pressed="false">60</button></div>
-        <form id="custom-form" class="custom-time"><label for="minutes">Custom</label><input type="number" id="minutes" min="0.1" max="180" step="0.1" value="10" inputmode="decimal" required aria-describedby="duration-help"><button type="submit">Set</button></form>
-        <p class="small-note" id="duration-help">Up to 180 minutes. Pause to change the time.</p>
+        <form id="custom-form" class="custom-time">
+          <h3>Custom timer</h3>
+          <div class="duration-fields">
+            <label for="minutes">Minutes<input type="number" id="minutes" min="0" max="180" step="1" value="10" inputmode="numeric" required aria-describedby="duration-help duration-error"></label>
+            <span class="duration-colon" aria-hidden="true">:</span>
+            <label for="seconds">Seconds<input type="number" id="seconds" min="0" max="59" step="1" value="0" inputmode="numeric" required aria-describedby="duration-help duration-error"></label>
+          </div>
+          <div class="duration-adjustments" role="group" aria-label="Adjust custom duration">
+            <button id="less-time" type="button" aria-label="Subtract one minute">−1 min</button>
+            <button id="more-time" type="button" aria-label="Add one minute">+1 min</button>
+          </div>
+          <button type="submit" class="set-time">Set timer</button>
+          <p id="duration-error" class="duration-error" role="alert" hidden></p>
+        </form>
+        <p class="small-note" id="duration-help">1 second to 180 minutes. Pause to set a new timer.</p>
       </section>
       <section class="setting-section sound-section">
         <h2>When time is up</h2>
