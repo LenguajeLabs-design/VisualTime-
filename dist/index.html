@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f8fa">
+  <meta name="description" content="A calm visual timer for your desk and classroom. A shrinking disc, a clear countdown, and a quiet finish.">
+  <title>Still · Calm visual timer</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23edf2f6'/%3E%3Cpath d='M16 5a11 11 0 1 0 11 11H16Z' fill='%23477599'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Still home"><span class="brand-icon" aria-hidden="true"></span>still<span class="brand-note">a little room to focus</span></a>
+    <button id="fullscreen" class="quiet-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span>Full screen</span></button>
+  </header>
+  <main>
+    <section class="timer-area" aria-label="Visual timer">
+      <div class="timer-heading"><p class="eyebrow" id="phase">YOUR TIME, AT YOUR PACE</p><h1 id="session-title">A moment to focus.</h1></div>
+      <div class="dial-wrap">
+        <svg class="dial" viewBox="0 0 400 400" role="img" aria-label="All of the selected time remains" id="dial">
+          <circle cx="200" cy="200" r="190" class="dial-outline"/>
+          <g id="ticks" aria-hidden="true"></g>
+          <circle cx="200" cy="200" r="167" class="dial-track"/>
+          <path id="sector" d="M 200 33 A 167 167 0 1 1 199.999 33 Z" class="dial-fill"/>
+          <circle cx="200" cy="200" r="5" class="dial-pin"/>
+        </svg>
+      </div>
+      <div class="readout"><div id="time" role="timer" aria-label="10 minutes remaining">10:00</div><p id="time-caption">minutes remaining</p></div>
+      <div class="playback"><button id="reset" class="reset-button" aria-label="Reset timer" title="Reset timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg></button><button id="start" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7Z"/></svg><span>Start timer</span></button><span class="balance" aria-hidden="true"></span></div>
+      <p class="keyboard-hint">Press <kbd>space</kbd> to start or pause</p>
+      <p id="announcement" class="sr-only" aria-live="polite"></p>
+    </section>
+    <aside class="settings" aria-label="Timer settings">
+      <section class="setting-section">
+        <h2>Make time for</h2>
+        <label class="sr-only" for="activity">Activity name</label><input id="activity" type="text" maxlength="70" placeholder="A moment to focus" autocomplete="off">
+      </section>
+      <section class="setting-section">
+        <h2>Set your time <span>minutes</span></h2>
+        <div class="presets" aria-label="Duration presets"><button data-minutes="5" aria-pressed="false">5</button><button data-minutes="10" aria-pressed="true">10</button><button data-minutes="15" aria-pressed="false">15</button><button data-minutes="20" aria-pressed="false">20</button><button data-minutes="25" aria-pressed="false">25</button><button data-minutes="30" aria-pressed="false">30</button><button data-minutes="45" aria-pressed="false">45</button><button data-minutes="60" aria-pressed="false">60</button></div>
+        <form id="custom-form" class="custom-time"><label for="minutes">Custom</label><input type="number" id="minutes" min="0.1" max="180" step="0.1" value="10" inputmode="decimal" required aria-describedby="duration-help"><button type="submit">Set</button></form>
+        <p class="small-note" id="duration-help">Up to 180 minutes. Pause to change the time.</p>
+      </section>
+      <section class="setting-section sound-section">
+        <h2>When time is up</h2>
+        <div class="sound-options" role="group" aria-label="Ending sound"><button id="silent" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4ZM17 9l5 6m0-6-5 6"/></svg>Silent</button><button id="tone" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5-5 4H2v6h3l5 4ZM15 8q5 4 0 8m4-11q7 7 0 14"/></svg>Soft tone</button></div>
+        <p class="small-note" id="sound-description">A gentle on-screen finish. No sound.</p>
+        <div id="tone-settings" hidden><label class="volume-label" for="volume">Volume <output id="volume-value">15%</output></label><input id="volume" type="range" min="0" max="100" value="15"><button id="preview" class="preview-button">Preview soft tone</button><p class="small-note">A low tone that fades in and out once. Start with your speaker volume low.</p></div>
+      </section>
+      <p class="reassurance"><span aria-hidden="true">○</span> No ticking. No rushing.</p>
+    </aside>
+  </main>
+  <footer><span>A quieter way to keep time.</span><span id="awake-note">Keep this tab open while your timer runs.</span></footer>
+</body>
+</html>
