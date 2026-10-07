@@ -2,6 +2,8 @@
 
 A quiet, browser-based visual timer for an external monitor or classroom smart board.
 
+**Open the timer:** [lenguajelabs-design.github.io/VisualTime-](https://lenguajelabs-design.github.io/VisualTime-/)
+
 The shrinking disc has a softly lit pond surface with slow ripples. It becomes still when the browser's reduced motion setting is on.
 
 Open `dist/index.html` directly in a modern browser, or serve `dist` with `python3 -m http.server 4173 --directory dist`.
