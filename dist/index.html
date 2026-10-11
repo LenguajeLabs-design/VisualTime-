@@ -69,9 +69,13 @@
       </section>
       <section class="setting-section sound-section">
         <h2>When time is up</h2>
-        <div class="sound-options" role="group" aria-label="Ending sound"><button id="silent" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4ZM17 9l5 6m0-6-5 6"/></svg>Silent</button><button id="tone" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5-5 4H2v6h3l5 4ZM15 8q5 4 0 8m4-11q7 7 0 14"/></svg>Soft tone</button></div>
+        <div class="sound-options" role="group" aria-label="Ending sound">
+          <button data-sound="silent" aria-pressed="true">Silent</button>
+          <button data-sound="chime" aria-pressed="false">Wind chime</button>
+          <button data-sound="ocean" aria-pressed="false">Ocean wave</button>
+        </div>
         <p class="small-note" id="sound-description">A gentle on-screen finish. No sound.</p>
-        <div id="tone-settings" hidden><label class="volume-label" for="volume">Volume <output id="volume-value">15%</output></label><input id="volume" type="range" min="0" max="100" value="15"><button id="preview" class="preview-button">Preview soft tone</button><p class="small-note">A low tone that fades in and out once. Start with your speaker volume low.</p></div>
+        <div id="sound-settings" hidden><label class="volume-label" for="volume">Sound level <output id="volume-value">35%</output></label><input id="volume" type="range" min="0" max="100" value="35"><button id="preview" class="preview-button">Test this sound</button><p class="small-note">Test it once before you begin. This lets your browser play the ending sound. Start with your speaker volume low.</p></div>
       </section>
       <p class="reassurance"><span aria-hidden="true">○</span> No ticking. No rushing.</p>
     </aside>

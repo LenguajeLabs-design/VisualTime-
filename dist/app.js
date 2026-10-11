@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const presets = [...document.querySelectorAll('[data-minutes]')];
   let duration = 600000, remaining = duration, deadline = 0, state = 'ready';
-  let sound = false, context, audioEpoch = 0, wakeLock = null, lastSecond = -1;
+  let endingSound = 'silent', context, audioEpoch = 0, wakeLock = null, lastSecond = -1;
   let nightMode = document.documentElement.dataset.theme === 'dark';
   const voices = new Set();
   const water = $('water');
@@ -12,7 +12,7 @@
   let waterFraction = 1, waterFrame = 0, lastWaterFrame = 0;
   const announce = message => { $('announcement').textContent = message; };
   const readRemaining = () => state === 'running' ? Math.max(0, deadline - Date.now()) : remaining;
-  const snapshot = () => ({ state, durationSeconds: duration / 1000, remainingSeconds: Math.ceil(readRemaining() / 1000), sound: sound ? 'soft tone' : 'silent' });
+  const snapshot = () => ({ state, durationSeconds: duration / 1000, remainingSeconds: Math.ceil(readRemaining() / 1000), sound: endingSound });
 
   for (let i = 0; i < 60; i++) {
     const angle = i * Math.PI / 30;
@@ -166,29 +166,76 @@
     if (context.state === 'suspended') await context.resume();
     return context;
   }
-  async function playTone() {
+  async function armAudio() {
+    const ctx = await prepareAudio();
+    // A nearly silent pulse runs in a user gesture, so the final alert is not
+    // silenced by browsers that require audio to be started by a button press.
+    const oscillator = ctx.createOscillator(), gain = ctx.createGain();
+    gain.gain.value = .00001;
+    oscillator.connect(gain); gain.connect(ctx.destination);
+    oscillator.start(); oscillator.stop(ctx.currentTime + .025);
+  }
+  function endVoice(source, nodes) {
+    voices.add(source);
+    source.onended = () => {
+      voices.delete(source);
+      for (const node of nodes) { try { node.disconnect(); } catch {} }
+    };
+  }
+  function playWindChime(ctx, now, level) {
+    const notes = [[0, 783.99, 1], [.52, 1046.5, .72], [1.15, 659.25, .82], [1.78, 1174.66, .55]];
+    for (const [offset, frequency, brightness] of notes) {
+      const oscillator = ctx.createOscillator(), shimmer = ctx.createOscillator();
+      const gain = ctx.createGain(), shimmerGain = ctx.createGain();
+      const start = now + offset;
+      oscillator.type = 'sine'; oscillator.frequency.value = frequency;
+      shimmer.type = 'sine'; shimmer.frequency.value = frequency * 2.01;
+      gain.gain.setValueAtTime(.00001, start);
+      gain.gain.linearRampToValueAtTime(level * .24 * brightness, start + .11);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + 4.7);
+      shimmerGain.gain.setValueAtTime(.00001, start);
+      shimmerGain.gain.linearRampToValueAtTime(level * .025 * brightness, start + .09);
+      shimmerGain.gain.exponentialRampToValueAtTime(.0001, start + 2.8);
+      oscillator.connect(gain); gain.connect(ctx.destination);
+      shimmer.connect(shimmerGain); shimmerGain.connect(ctx.destination);
+      endVoice(oscillator, [oscillator, shimmer, gain, shimmerGain]);
+      shimmer.onended = () => { try { shimmer.disconnect(); shimmerGain.disconnect(); } catch {} };
+      oscillator.start(start); shimmer.start(start);
+      oscillator.stop(start + 4.8); shimmer.stop(start + 2.9);
+    }
+  }
+  function playOceanWave(ctx, now, level) {
+    const length = Math.floor(ctx.sampleRate * 6.8);
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const samples = buffer.getChannelData(0);
+    let low = 0;
+    for (let index = 0; index < length; index++) {
+      low = low * .985 + (Math.random() * 2 - 1) * .015;
+      samples[index] = low * 8;
+    }
+    const source = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    source.buffer = buffer; filter.type = 'lowpass'; filter.frequency.value = 980; filter.Q.value = .45;
+    gain.gain.setValueAtTime(.00001, now);
+    gain.gain.linearRampToValueAtTime(level * .16, now + 1.1);
+    gain.gain.linearRampToValueAtTime(level * .07, now + 2.8);
+    gain.gain.linearRampToValueAtTime(level * .18, now + 4.2);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + 6.75);
+    source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    endVoice(source, [source, filter, gain]);
+    source.start(now); source.stop(now + 6.8);
+  }
+  async function playEndingSound() {
     stopSound();
     const epoch = audioEpoch;
     try {
       const ctx = await prepareAudio();
-      if (epoch !== audioEpoch || !sound) return;
+      if (epoch !== audioEpoch || endingSound === 'silent') return;
       const level = Number($('volume').value) / 100;
       if (level === 0) return;
       const now = ctx.currentTime;
-      // Sine waves have no harsh high harmonics. A slow attack avoids a sharp onset.
-      for (const [frequency, scale] of [[196, 1], [293.66, .25]]) {
-        const oscillator = ctx.createOscillator(), gain = ctx.createGain();
-        oscillator.type = 'sine'; oscillator.frequency.value = frequency;
-        gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(level * .22 * scale, now + .8);
-        gain.gain.exponentialRampToValueAtTime(.0001, now + 3.6);
-        gain.gain.linearRampToValueAtTime(0, now + 4);
-        oscillator.connect(gain); gain.connect(ctx.destination);
-        voices.add(oscillator);
-        oscillator.onended = () => { voices.delete(oscillator); oscillator.disconnect(); gain.disconnect(); };
-        oscillator.start(now); oscillator.stop(now + 4.1);
-      }
-    } catch { $('sound-description').textContent = 'Sound is unavailable in this browser. The on-screen finish still works.'; }
+      if (endingSound === 'chime') playWindChime(ctx, now, level);
+      if (endingSound === 'ocean') playOceanWave(ctx, now, level);
+    } catch { $('sound-description').textContent = 'Your browser could not start this sound. Try “Test this sound” once, then start the timer.'; }
   }
   async function keepAwake() {
     if (state !== 'running' || document.visibilityState !== 'visible' || wakeLock || !navigator.wakeLock) return;
@@ -205,14 +252,14 @@
     if (state !== 'running') return;
     remaining = 0; state = 'finished'; releaseAwake(); updateControls();
     announce('Your time is complete. A moment to breathe.');
-    if (sound) void playTone();
+    if (endingSound !== 'silent') void playEndingSound();
   }
   function start() {
     if (state === 'running') return;
     stopSound();
     if (remaining <= 0) remaining = duration;
     deadline = Date.now() + remaining; state = 'running';
-    if (sound) void prepareAudio().catch(() => { $('sound-description').textContent = 'Sound is unavailable. The on-screen finish still works.'; });
+    if (endingSound !== 'silent') void armAudio().catch(() => { $('sound-description').textContent = 'Your browser could not start this sound. Try “Test this sound” once, then start the timer.'; });
     updateControls(); void keepAwake(); announce('Timer started.');
   }
   function pause() {
@@ -231,12 +278,17 @@
     reset();
     announce(`Timer set to ${Math.floor(duration / 60000)} minutes ${duration / 1000 % 60} seconds.`);
   }
-  function setSound(enabled) {
-    sound = enabled; stopSound();
-    $('silent').setAttribute('aria-pressed', String(!sound)); $('tone').setAttribute('aria-pressed', String(sound));
-    $('tone-settings').hidden = !sound;
-    $('sound-description').textContent = sound ? 'One soft tone, then quiet.' : 'A gentle on-screen finish. No sound.';
-    if (sound) void prepareAudio().catch(() => { $('sound-description').textContent = 'Sound is unavailable. The on-screen finish still works.'; });
+  function setSound(kind) {
+    endingSound = kind; stopSound();
+    for (const option of document.querySelectorAll('[data-sound]')) option.setAttribute('aria-pressed', String(option.dataset.sound === kind));
+    $('sound-settings').hidden = kind === 'silent';
+    const descriptions = {
+      silent: 'A gentle on-screen finish. No sound.',
+      chime: 'Four warm chimes, spaced gently apart.',
+      ocean: 'One soft, rolling ocean wave.'
+    };
+    $('sound-description').textContent = descriptions[kind];
+    if (kind !== 'silent') void armAudio().catch(() => { $('sound-description').textContent = 'Select “Test this sound” once before starting your timer.'; });
   }
   $('start').addEventListener('click', () => state === 'running' ? pause() : start());
   $('reset').addEventListener('click', reset);
@@ -292,9 +344,8 @@
   });
   applyTheme();
   $('activity').addEventListener('input', updateControls);
-  $('silent').addEventListener('click', () => setSound(false));
-  $('tone').addEventListener('click', () => setSound(true));
-  $('preview').addEventListener('click', () => { if (voices.size) { stopSound(); } else void playTone(); });
+  document.querySelectorAll('[data-sound]').forEach(option => option.addEventListener('click', () => setSound(option.dataset.sound)));
+  $('preview').addEventListener('click', () => { if (voices.size) stopSound(); else void playEndingSound(); });
   $('volume').addEventListener('input', () => { $('volume-value').value = `${$('volume').value}%`; stopSound(); });
   function setPresentation(enabled) {
     document.body.classList.toggle('presenting', enabled);

@@ -8,7 +8,7 @@ The shrinking disc has a softly lit pond surface with slow ripples. It becomes s
 
 Open `dist/index.html` directly in a modern browser, or serve `dist` with `python3 -m http.server 4173 --directory dist`.
 
-- Silent by default. Optional 196 Hz sine tone with a quiet harmonic, gradual attack and four-second fade; no repeating alarm.
+- Silent by default. Optional synthesized wind chime and ocean-wave endings, with a test button and adjustable sound level. No downloaded audio or repeating alarm.
 - Quick presets and custom durations from 1 second to 180 minutes, with separate minutes/seconds and one-minute adjustments.
 - Night mode dims the interface and pond, follows your system preference initially, and remembers your choice on this browser.
 - Start, pause, resume, reset, and spacebar control.
